@@ -2,6 +2,8 @@
 
 Unity 2022.3.62f2 (LTS) — Developer case study showcasing a production-ready, modular Save/Load system with clean MVC architecture.
 
+[Demo Video](https://drive.google.com/file/d/1wsqF8cOjUNy69mIIRdEKQlu3gAY5pj0I/view?usp=sharing)
+
 ## Architecture
 
 Event-driven MVC pattern using `ModelLocator` for centralized data access and `GameEvents` for decoupled communication. Controllers extend `BaseController` (headless) or `BaseViewController` (with UI) from the local `Game.Framework` module. Infrastructure components like `SaveSlotFactory` handle object pooling and spawning, keeping Views free of instantiation logic.
