@@ -12,4 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 330a46be36be7254fb761a39ec6d19a8, type: 3}
   m_Name: SaveConfig
   m_EditorClassIdentifier: 
-  _maxSlots: 4
+  _maxSlots: 3

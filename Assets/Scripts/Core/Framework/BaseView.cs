@@ -6,7 +6,7 @@ namespace Game.Framework
     public abstract class BaseView : MonoBehaviour
     {
         [SerializeField] protected CanvasGroup _canvasGroup;
-        [SerializeField] private float _transitionSpeed = 0.25f;
+        [SerializeField] protected float _transitionSpeed = 0.25f;
 
         private Tween _fadeTween;
 
