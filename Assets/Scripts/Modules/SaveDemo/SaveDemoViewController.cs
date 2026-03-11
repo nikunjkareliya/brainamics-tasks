@@ -11,7 +11,7 @@ namespace SaveDemo
     /// </summary>
     public class SaveDemoViewController : BaseViewController
     {
-        [SerializeField] private SaveSlotFactory _slotFactory;
+        [SerializeField] private SaveSlotPool _slotPool;
 
         private SaveDemoView View => _viewObject as SaveDemoView;
 
@@ -26,7 +26,7 @@ namespace SaveDemo
             _currencyModel = ModelLocator.Get<CurrencyModel>();
             _progressModel = ModelLocator.Get<ProgressModel>();
 
-            _slotFactory.PreWarm();
+            _slotPool.PreWarm();
             InitSlots(_saveModel.Slots);
             _selectedSlot = _saveModel.ActiveSlotIndex;
             RefreshUI();
@@ -272,12 +272,12 @@ namespace SaveDemo
 
         private void InitSlots(List<SaveSlotInfo> slots)
         {
-            _slotFactory.ReturnAll();
+            _slotPool.ReturnAll();
 
             var slotViews = new List<SaveSlotView>();
             for (int i = 0; i < slots.Count; i++)
             {
-                SaveSlotView slotView = _slotFactory.Get();
+                SaveSlotView slotView = _slotPool.Get();
                 slotView.Init(slots[i]);
                 slotViews.Add(slotView);
             }

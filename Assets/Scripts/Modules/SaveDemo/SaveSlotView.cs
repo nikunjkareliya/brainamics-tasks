@@ -11,7 +11,7 @@ namespace SaveDemo
     /// Manages individual save slot button visuals and click interaction.
     /// Attached to each spawned slot prefab instance.
     /// </summary>
-    public class SaveSlotView : BaseView
+    public class SaveSlotView : BaseView, IPoolable
     {
         [SerializeField] private TMP_Text _slotText;
         [SerializeField] private Button _button;
@@ -52,7 +52,9 @@ namespace SaveDemo
             _button.image.color = selected ? _selectedColor : _defaultColor;
         }
 
-        public void ResetSlot()
+        public void OnPoolGet() { }
+
+        public void OnPoolReturn()
         {
             OnSlotClicked = null;
             _slotIndex = -1;

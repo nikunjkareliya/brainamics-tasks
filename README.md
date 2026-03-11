@@ -6,7 +6,7 @@ Unity 2022.3.62f2 (LTS) — Developer case study showcasing a production-ready, 
 
 ## Architecture
 
-Event-driven MVC pattern using `ModelLocator` for centralized data access and `GameEvents` for decoupled communication. Controllers extend `BaseController` (headless) or `BaseViewController` (with UI) from the local `Game.Framework` module. Infrastructure components like `SaveSlotFactory` handle object pooling and spawning, keeping Views free of instantiation logic.
+Event-driven MVC pattern using `ModelLocator` for centralized data access and `GameEvents` for decoupled communication. Controllers extend `BaseController` (headless) or `BaseViewController` (with UI) from the local `Game.Framework` module. Infrastructure components like `SaveSlotPool` handle object pooling and spawning, keeping Views free of instantiation logic.
 
 **Namespaces:** `Game` (game-specific code) | `SaveSystem` (reusable save framework) | `SaveDemo` (demo UI) | `Game.Framework` (shared framework)
 
@@ -20,6 +20,8 @@ Assets/Scripts/
 │   │   ├── BaseViewController.cs  # Controller with serialized BaseView reference
 │   │   ├── BaseView.cs            # Abstract view with DOTween fade transitions
 │   │   ├── GameEvent.cs           # Lightweight event system (Subscribe/Unsubscribe/Publish)
+│   │   ├── IPoolable.cs           # Interface for poolable components (OnPoolGet/OnPoolReturn)
+│   │   ├── ObjectPool.cs          # Generic object pool (subclass per type for Inspector support)
 │   │   └── ModelLocator.cs        # Static type-based model registry
 │   ├── BootLoader.cs              # Registers all models in ModelLocator
 │   └── GameEvents.cs              # Centralized event definitions
@@ -42,9 +44,9 @@ Assets/Scripts/
     │   └── SaveFileHandler.cs     # Disk I/O and file management
     └── SaveDemo/
         ├── SaveDemoViewController.cs  # Demo controller with UI constraints
-        ├── SaveDemoView.cs            # Demo UI view (receives slots from factory)
-        ├── SaveSlotView.cs            # Individual slot button view
-        └── SaveSlotFactory.cs         # Object-pooled slot spawning factory
+        ├── SaveDemoView.cs            # Demo UI view (receives slots from pool)
+        ├── SaveSlotView.cs            # Individual slot button view (IPoolable)
+        └── SaveSlotPool.cs            # Concrete pool for SaveSlotView
 ```
 
 ## Demo Scene
@@ -53,13 +55,13 @@ Set up the SaveSystem scene manually in the Unity Editor with:
 - A Canvas containing the SaveDemoPanel (with `SaveDemoViewController` + `SaveDemoView`)
 - A BootLoader and SaveController GameObject
 - A ScrollView with VerticalLayoutGroup for dynamic slot spawning
-- A SaveSlotFactory component for object-pooled slot spawning
+- A SaveSlotPool component for object-pooled slot spawning
 
 The demo lets you select save slots, modify game data (coins, gems, levels, stars), save/load, delete slots, and start new games — all wired to the real save system.
 
 ### Dynamic Slot System
 
-Slot count is driven by `SaveConfig.MaxSlots` (configurable 1–10 in the ScriptableObject at `Assets/SOs/SaveConfig.asset`). Slots are managed by `SaveSlotFactory`, which uses an object pool (pre-warm, get, return) to efficiently recycle `SaveSlotView` instances from `ButtonSlotPrefab`. The factory owns the prefab and container references; `SaveDemoViewController` orchestrates slot creation while `SaveDemoView` only handles presentation.
+Slot count is driven by `SaveConfig.MaxSlots` (configurable 1–10 in the ScriptableObject at `Assets/SOs/SaveConfig.asset`). Slots are managed by `SaveSlotPool`, which uses an object pool (pre-warm, get, return) to efficiently recycle `SaveSlotView` instances from `ButtonSlotPrefab`. The factory owns the prefab and container references; `SaveDemoViewController` orchestrates slot creation while `SaveDemoView` only handles presentation.
 
 #### Changing Slot Count
 
@@ -94,6 +96,11 @@ Available under **Tools > Save Data**:
 - **Delete All Save Data** — removes all save files and manifest (with confirmation)
 - **Log Save File Paths** — prints save file names, sizes, and timestamps to the Console
 
+## Delete Saved Data & Start Fresh
+
+**From the Unity Editor:**
+1. Go to **Tools > Save Data > Delete All Save Data** — removes all save files and manifest (with confirmation)
+
 ## Save System
 
 - **Multiple save slots** (configurable, 1–10) with manifest tracking
@@ -102,6 +109,18 @@ Available under **Tools > Save Data**:
 - **SHA256 checksum** validation on every load
 - **Chunked format** — each model serializes independently via `ISaveable`
 - **Newtonsoft.Json** for robust serialization (dictionaries, nulls, complex types)
+
+### File Structure
+
+Each slot gets its own file (`save_slot_0.json`, `save_slot_1.json`, etc.) plus a shared `save_manifest.json` tracking slot metadata. Saving/loading one slot doesn't touch others, deleting a slot is just deleting one file, and corruption in one slot doesn't affect the rest.
+
+### Chunked Format
+
+Each save file contains a `SaveData` object with:
+- **`header`** — metadata including a SHA256 checksum
+- **`chunks`** — a list of independent data blocks, one per `ISaveable` model (CurrencyModel, ProgressModel, etc.)
+
+Each chunk has a `key` (identifies the model), `version` (for migration), and `data` (the serialized model state). Models are decoupled — adding or removing a model doesn't break existing saves.
 
 ## Save System Flow
 
@@ -173,3 +192,24 @@ GameEvents.LoadRequested(slot) ──→ SaveController.Load(slot)
 2. Register it in `BootLoader.RegisterModels()` via `ModelLocator.Register(new YourModel())`
 
 3. Add `RegisterSaveable<YourModel>()` in `SaveController.Init()`
+
+## How to Pool a New Type
+
+The generic `ObjectPool<T>` framework lets you pool any `Component` with minimal boilerplate.
+
+1. **Optionally** implement `IPoolable` on your Component for reset callbacks:
+   ```csharp
+   public class EnemyView : MonoBehaviour, IPoolable
+   {
+       public void OnPoolGet() { /* called when retrieved from pool */ }
+       public void OnPoolReturn() { /* called when returned to pool — reset state here */ }
+   }
+   ```
+2. Create a one-line concrete pool class:
+   ```csharp
+   public class EnemyPool : ObjectPool<EnemyView> { }
+   ```
+3. Add the pool component to a GameObject in the scene, assign the **Prefab** and **Container** fields in the Inspector, and optionally adjust **Pre Warm Count**
+4. Use the pool at runtime: `var enemy = _enemyPool.Get();` / `_enemyPool.Return(enemy);` / `_enemyPool.ReturnAll();`
+
+> Components that don't implement `IPoolable` are still poolable — the callbacks are simply skipped.
